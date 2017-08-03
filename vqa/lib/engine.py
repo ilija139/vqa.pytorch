@@ -1,3 +1,5 @@
+import numpy as np
+import pdb
 import time
 import torch
 from torch.autograd import Variable
@@ -18,10 +20,12 @@ def train(loader, model, criterion, optimizer, logger, epoch, print_freq=10):
         input_visual   = Variable(sample['visual'])
         input_question = Variable(sample['question'])
         target_answer  = Variable(sample['answer'].cuda(async=True))
+        target_weight  = sample['weight'].cuda(async=True)
 
         # compute output
         output = model(input_visual, input_question)
         torch.cuda.synchronize()
+        criterion.weight = target_weight
         loss = criterion(output, target_answer)
         meters['loss'].update(loss.data[0], n=batch_size)
 
@@ -54,19 +58,17 @@ def train(loader, model, criterion, optimizer, logger, epoch, print_freq=10):
 
     logger.log_meters('train', n=epoch)
 
-# def adjust_learning_rate(optimizer, epoch):
-#     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-#     lr = args.lr * (0.1 ** (epoch // 30))
-#     for param_group in optimizer.param_groups:
-#         param_group['lr'] = lr
 
 
 def validate(loader, model, criterion, logger, epoch=0, print_freq=10):
     results = []
 
+    outputs = np.ndarray(shape=(447793,3000), dtype='float32')
+    mapping={}
     # switch to evaluate mode
     model.eval()
     meters = logger.reset_meters('val')
+
 
     end = time.time()
     for i, sample in enumerate(loader):
@@ -85,12 +87,15 @@ def validate(loader, model, criterion, logger, epoch=0, print_freq=10):
         meters['acc1'].update(acc1[0], n=batch_size)
         meters['acc5'].update(acc5[0], n=batch_size)
 
+        cpu_out = output.data.cpu()
         # compute predictions for OpenEnded accuracy
         _, pred = output.data.cpu().max(1)
         pred.squeeze_()
         for j in range(batch_size):
             results.append({'question_id': sample['question_id'][j],
                             'answer': loader.dataset.aid_to_ans[pred[j]]})
+            outputs[len(results)-1] = cpu_out[j].numpy()
+            mapping[item['question_id']] = len(results)-1
 
         # measure elapsed time
         meters['batch_time'].update(time.time() - end, n=batch_size)
@@ -115,10 +120,15 @@ def validate(loader, model, criterion, logger, epoch=0, print_freq=10):
 
 def test(loader, model, logger, epoch=0, print_freq=10):
     results = []
+    outputs = np.ndarray(shape=(447793,3000), dtype='float32')
     testdev_results = []
+    # testdev_outputs = np.ndarray(shape=(447793,3000), dtype='float32')
 
     model.eval()
     meters = logger.reset_meters('test')
+
+    mapping={}
+    # devmapping = {}
 
     end = time.time()
     for i, sample in enumerate(loader):
@@ -129,15 +139,20 @@ def test(loader, model, logger, epoch=0, print_freq=10):
         # compute output
         output = model(input_visual, input_question)
 
+        cpu_out = output.data.cpu()
         # compute predictions for OpenEnded accuracy
-        _, pred = output.data.cpu().max(1)
+        _, pred = cpu_out.max(1)
         pred.squeeze_()
         for j in range(batch_size):
             item = {'question_id': sample['question_id'][j],
                     'answer': loader.dataset.aid_to_ans[pred[j]]}
             results.append(item)
+            outputs[len(results)-1] = cpu_out[j].numpy()
+            mapping[item['question_id']] = len(results)-1
             if sample['is_testdev'][j]:
                 testdev_results.append(item)
+                # testdev_outputs[len(testdev_results)-1] = cpu_out[j].numpy()
+                # devmapping[item['question_id']] = len(testdev_results)-1
 
         # measure elapsed time
         meters['batch_time'].update(time.time() - end, n=batch_size)
@@ -149,4 +164,5 @@ def test(loader, model, logger, epoch=0, print_freq=10):
                    i, len(loader), batch_time=meters['batch_time']))
 
     logger.log_meters('test', n=epoch)
-    return results, testdev_results
+    # return results, testdev_results, outputs, testdev_outputs, mapping, devmapping
+    return results, testdev_results, outputs, mapping

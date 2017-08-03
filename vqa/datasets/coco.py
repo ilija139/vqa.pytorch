@@ -1,7 +1,8 @@
 import os
 # from mpi4py import MPI
+import torch
 import numpy as np
-import h5py
+# import h5py
 import torch.utils.data as data
 import torchvision.transforms as transforms
 
@@ -28,13 +29,14 @@ class COCOImages(AbstractImagesDataset):
         self.name_to_index = self._load_name_to_index()
 
     def _raw(self):
-        if self.data_split in ['train', 'val']:
-            os.system('wget http://msvocds.blob.core.windows.net/coco2014/{}.zip -P {}'.format(self.split_name, self.dir_raw))
-        elif self.data_split == 'test':
-            os.execute('wget http://msvocds.blob.core.windows.net/coco2015/test2015.zip -P '+self.dir_raw)
-        else:
-            assert False, 'data_split {} not exists'.format(self.data_split)
-        os.execute('unzip '+os.path.join(self.dir_raw, self.split_name+'.zip')+' -d '+self.dir_raw)
+        print('skip')
+        # if self.data_split in ['train', 'val']:
+        #     os.system('wget http://msvocds.blob.core.windows.net/coco2014/{}.zip -P {}'.format(self.split_name, self.dir_raw))
+        # elif self.data_split == 'test':
+        #     os.execute('wget http://msvocds.blob.core.windows.net/coco2015/test2015.zip -P '+self.dir_raw)
+        # else:
+        #     assert False, 'data_split {} not exists'.format(self.data_split)
+        # os.execute('unzip '+os.path.join(self.dir_raw, self.split_name+'.zip')+' -d '+self.dir_raw)
 
     def _load_name_to_index(self):
         self.name_to_index = {name:index for index, name in enumerate(self.dataset.imgs)}
@@ -62,7 +64,7 @@ class COCOTrainval(data.Dataset):
             item = self.valset[index - len(self.trainset)]
         return item
 
-    def get_by_name(self, image_name):
+    def get_by_name_old(self, image_name):
         if image_name in self.trainset.name_to_index:
             index = self.trainset.name_to_index[image_name]
             item = self.trainset[index]
@@ -73,6 +75,14 @@ class COCOTrainval(data.Dataset):
             return item
         else:
             raise ValueError
+
+    def get_by_name(self, image_name):
+        # print('image_name', image_name)
+        
+        item = {}
+        item['name'] = image_name
+        item['visual'] = torch.Tensor(np.load('/temp/ilija/fast/resnet_features/numpy/'+image_name+'.npz')['x'])
+        return item 
 
     def __len__(self):
         return len(self.trainset) + len(self.valset)

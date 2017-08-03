@@ -2,6 +2,7 @@ import os
 import pickle
 import torch
 import torch.utils.data as data
+import pdb
 import copy
 import numpy as np
 
@@ -61,13 +62,26 @@ class AbstractVQA(AbstractVQADataset):
             else:
                 item['is_testdev'] = False
         else:
-        ## Process Answer if exists
-            if self.opt['samplingans']:
-                proba = item_vqa['answers_count']
-                proba = proba / np.sum(proba)
-                item['answer'] = int(np.random.choice(item_vqa['answers_aid'], p=proba))
-            else:
-                item['answer'] = item_vqa['answer_aid']
+            item['weight'] = torch.FloatTensor(10).fill_(0)
+            for i in range(len(item_vqa['answers_count'])):
+                item['weight'][i] = item_vqa['answers_count'][i]/10.0
+
+            item['answer'] = torch.LongTensor(10).fill_(-1)
+            for i in range(len(item_vqa['answers_aid'])):
+                item['answer'][i] = item_vqa['answers_aid'][i]
+
+            # print('===================================================')
+            # print(item['weight'], item['answer'])
+            # print('===================================================')
+
+            
+        # ## Process Answer if exists
+        #     if self.opt['samplingans']:
+        #         proba = item_vqa['answers_count']
+        #         proba = proba / np.sum(proba)
+        #         item['answer'] = int(np.random.choice(item_vqa['answers_aid'], p=proba))
+        #     else:
+        #         item['answer'] = item_vqa['answer_aid']
 
         return item
 
@@ -141,6 +155,7 @@ class VQA(AbstractVQA):
 
 def factory_VQA(data_split, opt, opt_coco=None):
 
+    
     dataset_img = None
     if opt_coco is not None:
         dataset_img = factory_COCO(data_split, opt_coco)

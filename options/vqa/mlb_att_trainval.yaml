@@ -1,10 +1,10 @@
 logs:
-    dir_logs: logs/vqa/mlb_att_trainval
+    dir_logs: logs/vqa/mlb_att_trainval_whole
 vqa:
     dataset: VQA
     dir: data/vqa
     trainsplit: trainval
-    nans: 2000
+    nans: 3000
     maxlength: 26
     minwcount: 0
     nlp: mcb

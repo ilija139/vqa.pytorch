@@ -32,9 +32,9 @@ parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet152',
                     help='model architecture: ' +
                         ' | '.join(model_names) +
                         ' (default: resnet152)')
-parser.add_argument('--workers', default=4, type=int, metavar='N',
+parser.add_argument('--workers', default=14, type=int, metavar='N',
                     help='number of data loading workers (default: 8)')
-parser.add_argument('--batch_size', '-b', default=80, type=int, metavar='N',
+parser.add_argument('--batch_size', '-b', default=280, type=int, metavar='N',
                     help='mini-batch size (default: 80)')
 parser.add_argument('--mode', default='both', type=str,
                     help='Options: att | noatt | (default) both')
@@ -44,11 +44,11 @@ def main():
     args = parser.parse_args()
 
     print("=> using pre-trained model '{}'".format(args.arch))
-    model = models.__dict__[args.arch](pretrained=True)
-    model = ResNet(model, False)
-    model = nn.DataParallel(model).cuda()
+    # model = models.__dict__[args.arch](pretrained=True)
+    # model = ResNet(model, False)
+    # model = nn.DataParallel(model).cuda()
 
-    #extract_name = 'arch,{}_layer,{}_resize,{}'.format()
+    # extract_name = 'arch,{}_layer,{}_resize,{}'.format()
     extract_name = 'arch,{}'.format(args.arch)
 
     #dir_raw = os.path.join(args.dir_data, 'raw')
@@ -71,6 +71,7 @@ def main():
     path_file = os.path.join(dir_extract, args.data_split + 'set')
     os.system('mkdir -p ' + dir_extract)
 
+    model = {}
     extract(data_loader, model, path_file, args.mode)
 
 
@@ -89,7 +90,7 @@ def extract(data_loader, model, path_file, mode):
         hdf5_noatt = hdf5_file.create_dataset('noatt', shape_noatt,
                                               dtype='f')#, compression='gzip')
 
-    model.eval()
+    # model.eval()
 
     batch_time = AvgMeter()
     data_time  = AvgMeter()
@@ -97,30 +98,30 @@ def extract(data_loader, model, path_file, mode):
     end = time.time()
 
     idx = 0
-    for i, input in enumerate(data_loader):
-        input_var = torch.autograd.Variable(input['visual'], volatile=True)
-        output_att = model(input_var)
+    # for i, input in enumerate(data_loader):
+    #     input_var = torch.autograd.Variable(input['visual'], volatile=True)
+    #     output_att = model(input_var)
 
-        nb_regions = output_att.size(2) * output_att.size(3)
-        output_noatt = output_att.sum(3).sum(2).div(nb_regions).view(-1, 2048)
+    #     nb_regions = output_att.size(2) * output_att.size(3)
+    #     output_noatt = output_att.sum(3).sum(2).div(nb_regions).view(-1, 2048)
         
-        batch_size = output_att.size(0)
-        if mode == 'both' or mode == 'att':
-            hdf5_att[idx:idx+batch_size]   = output_att.data.cpu().numpy()
-        if mode == 'both' or mode == 'noatt':
-            hdf5_noatt[idx:idx+batch_size] = output_noatt.data.cpu().numpy()
-        idx += batch_size
+    #     batch_size = output_att.size(0)
+    #     if mode == 'both' or mode == 'att':
+    #         hdf5_att[idx:idx+batch_size]   = output_att.data.cpu().numpy()
+    #     if mode == 'both' or mode == 'noatt':
+    #         hdf5_noatt[idx:idx+batch_size] = output_noatt.data.cpu().numpy()
+    #     idx += batch_size
 
-        batch_time.update(time.time() - end)
-        end = time.time()
+    #     batch_time.update(time.time() - end)
+    #     end = time.time()
 
-        if i % 1 == 0:
-            print('Extract: [{0}/{1}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'.format(
-                   i, len(data_loader),
-                   batch_time=batch_time,
-                   data_time=data_time,))
+    #     if i % 1 == 0:
+    #         print('Extract: [{0}/{1}]\t'
+    #               'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+    #               'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'.format(
+    #                i, len(data_loader),
+    #                batch_time=batch_time,
+    #                data_time=data_time,))
             
     hdf5_file.close()
 

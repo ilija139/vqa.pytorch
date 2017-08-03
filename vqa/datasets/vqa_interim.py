@@ -1,11 +1,15 @@
+import pdb
 import json
 import os
 import argparse
 from collections import Counter
 
-def get_subtype(split='train'):
+def get_subtype(row, split='train'):
     if split in ['train', 'val']:
-        return split + '2014'
+        if 'is_val' in row and row['is_val']:
+            return 'val2014'
+        else:
+            return split+'2014'
     else:
         return 'test2015'
 
@@ -18,12 +22,17 @@ def get_image_name(subtype='train2014', image_id='1', format='COCO_%s_%012d.jpg'
 def interim(questions, split='train', annotations=[]):
     print('Interim', split)
     data = []
+    
+    dasda = True
     for i in range(len(questions)):
         row = {}
         row['question_id'] = questions[i]['question_id']
-        row['image_name'] = get_image_name(get_subtype(split), questions[i]['image_id'])
+        if 'is_val' in questions[i] and dasda:
+            pdb.set_trace()
+            dasda = False
+        row['image_name'] = get_image_name_old(get_subtype(questions[i], split), questions[i]['image_id'])
         row['question'] = questions[i]['question']
-        row['MC_answer'] = questions[i]['multiple_choices']
+        # row['MC_answer'] = questions[i]['multiple_choices']
         if split in ['train', 'val', 'trainval']:
             row['answer'] = annotations[i]['multiple_choice_answer']
             answers = []
@@ -49,12 +58,12 @@ def vqa_interim(dir_vqa):
     os.system('mkdir -p ' + os.path.join(dir_vqa, 'interim'))
 
     print('Loading annotations and questions...')
-    annotations_train = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'mscoco_train2014_annotations.json'), 'r'))
-    annotations_val   = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'mscoco_val2014_annotations.json'), 'r'))
-    questions_train   = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'MultipleChoice_mscoco_train2014_questions.json'), 'r'))
-    questions_val     = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'MultipleChoice_mscoco_val2014_questions.json'), 'r'))
-    questions_test    = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'MultipleChoice_mscoco_test2015_questions.json'), 'r'))
-    questions_testdev = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'MultipleChoice_mscoco_test-dev2015_questions.json'), 'r'))
+    annotations_train = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'v2_mscoco_train2014_annotations_with_VG.json'), 'r'))
+    annotations_val   = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'v2_mscoco_val2014_annotations.json'), 'r'))
+    questions_train   = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'v2_OpenEnded_mscoco_train2014_questions_with_VG.json'), 'r'))
+    questions_val     = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'v2_OpenEnded_mscoco_val2014_questions.json'), 'r'))
+    questions_test    = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'v2_OpenEnded_mscoco_test2015_questions.json'), 'r'))
+    questions_testdev = json.load(open(os.path.join(dir_vqa, 'raw', 'annotations', 'v2_OpenEnded_mscoco_test-dev2015_questions.json'), 'r'))
 
     data_train = interim(questions_train['questions'], 'train', annotations_train['annotations'])
     print('Train size %d'%len(data_train))

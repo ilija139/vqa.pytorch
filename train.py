@@ -1,9 +1,11 @@
+import ujson
 import argparse
 import os
 import shutil
 import yaml
 import json
 import click
+import numpy as np
 from pprint import pprint
 
 import torch
@@ -25,8 +27,7 @@ parser = argparse.ArgumentParser(
     description='Train/Evaluate models',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 ##################################################
-# yaml options file contains all default choices #
-parser.add_argument('--path_opt', default='options/vqa/default.yaml', type=str, 
+parser.add_argument('--path_opt', default='options/vqa/default.yaml', type=str,
                     help='path to a yaml options file')
 ################################################
 # change cli options to modify default choices #
@@ -59,20 +60,36 @@ parser.add_argument('--resume', default='', type=str,
                     help='path to latest checkpoint')
 parser.add_argument('--save_model', default=True, type=utils.str2bool,
                     help='able or disable save model and optim state')
-parser.add_argument('--save_all_from', type=int,
+parser.add_argument('--save_all_from', default=5, type=int,
                     help='''delete the preceding checkpoint until an epoch,'''
                          ''' then keep all (useful to save disk space)')''')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation and test set')
-parser.add_argument('-j', '--workers', default=2, type=int,
+parser.add_argument('-j', '--workers', default=4, type=int,
                     help='number of data loading workers')
-parser.add_argument('--print_freq', '-p', default=10, type=int,
+parser.add_argument('--print_freq', '-p', default=100, type=int,
                     help='print frequency')
 ################################################
 parser.add_argument('-ho', '--help_opt', dest='help_opt', action='store_true',
                     help='show selected options before running')
 
 best_acc1 = 0
+
+def adjust_learning_rate(start_lr, optimizer, epoch):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    print('addjsting learning_rate at epoch',epoch)
+    lr = start_lr
+    if epoch >= 45:
+        lr = start_lr *0.01
+    else:
+        if epoch >= 30:
+            lr = start_lr *0.1
+            
+    was = ''
+    for param_group in optimizer.param_groups:
+        was = param_group['lr']
+        param_group['lr'] = lr
+    print('Was', was, 'now', lr)
 
 def main():
     global args, best_acc1
@@ -158,7 +175,6 @@ def main():
             yaml.dump(vars(args), f, default_flow_style=False)
         
     if exp_logger is None:
-        # Set loggers
         exp_name = os.path.basename(options['logs']['dir_logs']) # add timestamp
         exp_logger = logger.Experiment(exp_name, options)
         exp_logger.add_meters('train', make_meters())
@@ -180,8 +196,18 @@ def main():
             save_results(val_results, args.start_epoch, valset.split_name(),
                          options['logs']['dir_logs'], options['vqa']['dir'])
         
-        test_results, testdev_results = engine.test(test_loader, model, exp_logger,
-                                                    args.start_epoch, args.print_freq)
+        # valset = datasets.factory_VQA('val', options['vqa'], options['coco'])
+        # val_loader = valset.data_loader(batch_size=options['optim']['batch_size'],
+        #                                 num_workers=args.workers)
+        test_results, testdev_results, prob, mapping = engine.test(test_loader, model, exp_logger, args.start_epoch, args.print_freq)
+        # test_results, testdev_results, prob, mapping = engine.validate(val_loader, model, criterion, exp_logger, args.start_epoch, args.print_freq)
+        with open('map_MLB_2g_ep42.json','w') as f:
+            ujson.dump(mapping,f)
+        # with open('devmap_'+str(args.start_epoch)+'.json','w') as f:
+        #     ujson.dump(devmapping,f)
+        np.savez_compressed('MLB_2g_ep42', x=prob)
+
+        # np.save('dev_prob_'+str(args.start_epoch), dev_prob)
         # save results and DOES NOT compute OpenEnd accuracy
         exp_logger.to_json(path_logger_json)
         save_results(test_results, args.start_epoch, testset.split_name(),
@@ -191,16 +217,14 @@ def main():
         return
 
     for epoch in range(args.start_epoch+1, options['optim']['epochs']):
-        #adjust_learning_rate(optimizer, epoch)
+        adjust_learning_rate(options['optim']['lr'], optimizer, epoch)
 
         # train for one epoch
-        engine.train(train_loader, model, criterion, optimizer, 
-                     exp_logger, epoch, args.print_freq)
+        engine.train(train_loader, model, criterion, optimizer, exp_logger, epoch, args.print_freq)
         
         if options['vqa']['trainsplit'] == 'train':
             # evaluate on validation set
-            acc1, val_results = engine.validate(val_loader, model, criterion,
-                                                exp_logger, epoch, args.print_freq)
+            acc1, val_results = engine.validate(val_loader, model, criterion, exp_logger, epoch, args.print_freq)
             # remember best prec@1 and save checkpoint
             is_best = acc1 > best_acc1
             best_acc1 = max(acc1, best_acc1)
@@ -221,8 +245,10 @@ def main():
             save_results(val_results, epoch, valset.split_name(),
                          options['logs']['dir_logs'], options['vqa']['dir'])
         else:
-            test_results, testdev_results = engine.test(test_loader, model, exp_logger,
+            test_results, testdev_results, prob, dev_prob, mapping, devmapping = engine.test(test_loader, model, exp_logger,
                                                         epoch, args.print_freq)
+            # np.save('mutan_prob_'+str(epoch), prob)
+            # np.save('mutan_dev_prob_'+str(epoch), dev_prob)
 
             # save checkpoint at every timestep
             save_checkpoint({

@@ -1,6 +1,7 @@
+import pdb
 import os
 import numpy as np
-import h5py
+# import h5py
 import torch
 import torch.utils.data as data
 
@@ -9,15 +10,16 @@ class FeaturesDataset(data.Dataset):
     def __init__(self, data_split, opt):
         self.data_split = data_split
         self.opt = opt
-        self.dir_extract = os.path.join(self.opt['dir'],
-                                      'extract',
-                                      'arch,' + self.opt['arch'])
+        # self.dir_extract = os.path.join(self.opt['dir'],
+        #                               'extract',
+        #                               'arch,' + self.opt['arch'])
+        self.dir_extract = '/temp/ilija/fast/ms_coco_images/extract/arch,resnet152/'
         self.path_hdf5 = os.path.join(self.dir_extract,
                                       data_split + 'set.hdf5')
         assert os.path.isfile(self.path_hdf5), \
                'you must extract the features first with extract.py'
-        self.hdf5_file = h5py.File(self.path_hdf5, 'r')#, driver='mpio', comm=MPI.COMM_WORLD)
-        self.dataset_features = self.hdf5_file[self.opt['mode']]
+        # self.hdf5_file = h5py.File(self.path_hdf5, 'r')#, driver='mpio', comm=MPI.COMM_WORLD)
+        # self.dataset_features = self.hdf5_file[self.opt['mode']]
         self.index_to_name, self.name_to_index = self._load_dicts()
 
     def _load_dicts(self):
@@ -31,6 +33,7 @@ class FeaturesDataset(data.Dataset):
 
     def __getitem__(self, index):
         item = {}
+        print('$#$#$#$#$$$$$$$$$$$$$$$$$#####')
         item['name'] = self.index_to_name[index]
         item['visual'] = self.get_features(index)
         #item = torch.Tensor(self.get_features(index))
@@ -60,8 +63,12 @@ class FeaturesDataset(data.Dataset):
         
 
     def get_by_name(self, image_name):
-        index = self.name_to_index[image_name]
-        return self[index]
+        # print('image_name', image_name)
+        
+        item = {}
+        item['name'] = image_name
+        item['visual'] = torch.Tensor(np.load('/temp/ilija/fast/resnet_features/numpy/'+image_name+'.npz')['x'])
+        return item 
 
     def __len__(self):
         return self.dataset_features.shape[0]
